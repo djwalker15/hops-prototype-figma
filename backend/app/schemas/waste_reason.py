@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
+from datetime import datetime
 from . import ORM_CAMEL_CONFIG
 
 
@@ -10,7 +11,7 @@ class WasteReasonOut(BaseModel):
     name: str
     is_active: bool
     sort_order: int
-    created_at: Optional[str] = None
+    created_at: Optional[Union[datetime, str]] = None
 
 
 class WasteReasonCreate(BaseModel):

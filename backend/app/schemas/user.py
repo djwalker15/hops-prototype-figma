@@ -9,5 +9,5 @@ class UserOut(BaseModel):
     name: str
     pin: str
     role: str
-    is_active: bool
-    is_scheduled_today: bool
+    is_active: bool = True  # Not a DB column; always True
+    is_scheduled_today: bool = False

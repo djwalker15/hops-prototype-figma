@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, DateTime
 from .base import Base
 
 
@@ -9,6 +9,5 @@ class User(Base):
     name = Column(String, nullable=False)
     pin = Column(String, nullable=False)
     role = Column(String, nullable=False)
-    is_active = Column(Boolean, nullable=False, server_default="true")
     is_scheduled_today = Column(Boolean, nullable=False, server_default="false")
-    created_at = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=True)

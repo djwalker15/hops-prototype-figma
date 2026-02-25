@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float
+from sqlalchemy import Column, String, Float, DateTime
 from .base import Base
 
 
@@ -17,6 +17,5 @@ class WasteEntry(Base):
     logged_by_name = Column(String, nullable=False)
     attributed_to_user_id = Column(String, nullable=True)
     attributed_to_name = Column(String, nullable=True)
-    timestamp = Column(String, nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
     notes = Column(String, nullable=True)
-    photo_url = Column(String, nullable=True)

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
+from datetime import datetime
 from . import ORM_CAMEL_CONFIG
 
 
@@ -18,9 +19,8 @@ class WasteEntryOut(BaseModel):
     logged_by_name: str
     attributed_to_user_id: Optional[str] = None
     attributed_to_name: Optional[str] = None
-    timestamp: str
+    timestamp: Union[datetime, str]
     notes: Optional[str] = None
-    photo_url: Optional[str] = None
 
 
 class WasteEntryCreate(BaseModel):
@@ -38,6 +38,5 @@ class WasteEntryCreate(BaseModel):
     logged_by_name: str
     attributed_to_user_id: Optional[str] = None
     attributed_to_name: Optional[str] = None
-    timestamp: Optional[str] = None
+    timestamp: Optional[Union[datetime, str]] = None
     notes: Optional[str] = None
-    photo_url: Optional[str] = None

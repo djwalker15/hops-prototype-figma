@@ -3,9 +3,8 @@ Comprehensive seed data for H.O.P.S. (Haywire Bar waste logger).
 Ported from supabase/functions/server/comprehensive_seed_data.tsx.
 """
 import uuid
-from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete
 from ..models.user import User
 from ..models.item import Item
 from ..models.waste_reason import WasteReason
@@ -18,12 +17,12 @@ from ..models.recipe_ingredient import RecipeIngredient
 # ─────────────────────────────────────────────
 
 USERS = [
-    {"id": "user_brittany", "name": "Brittany", "pin": "1234", "role": "manager", "is_active": True, "is_scheduled_today": True},
-    {"id": "user_davontae", "name": "Davontae", "pin": "2345", "role": "bartender", "is_active": True, "is_scheduled_today": True},
-    {"id": "user_izzy",     "name": "Izzy",     "pin": "3456", "role": "bartender", "is_active": True, "is_scheduled_today": True},
-    {"id": "user_sydney",   "name": "Sydney",   "pin": "4567", "role": "bartender", "is_active": True, "is_scheduled_today": False},
-    {"id": "user_dylan",    "name": "Dylan",    "pin": "5678", "role": "barback",   "is_active": True, "is_scheduled_today": False},
-    {"id": "user_dalton",   "name": "Dalton",   "pin": "6789", "role": "bartender", "is_active": True, "is_scheduled_today": False},
+    {"id": "user_001", "name": "Brittany", "pin": "1234", "role": "manager",    "is_scheduled_today": True},
+    {"id": "user_002", "name": "Davontae", "pin": "2345", "role": "bartender",  "is_scheduled_today": True},
+    {"id": "user_003", "name": "Izzy",     "pin": "3456", "role": "bartender",  "is_scheduled_today": True},
+    {"id": "user_004", "name": "Sydney",   "pin": "4567", "role": "bartender",  "is_scheduled_today": False},
+    {"id": "user_005", "name": "Dylan",    "pin": "5678", "role": "bartender",  "is_scheduled_today": False},
+    {"id": "user_006", "name": "Dalton",   "pin": "6789", "role": "bartender",  "is_scheduled_today": False},
 ]
 
 # ─────────────────────────────────────────────
@@ -31,16 +30,16 @@ USERS = [
 # ─────────────────────────────────────────────
 
 WASTE_REASONS = [
-    {"id": "reason_dropped",   "name": "Dropped/Spilled",        "is_active": True, "sort_order": 1},
-    {"id": "reason_sent_back", "name": "Guest sent back",        "is_active": True, "sort_order": 2},
-    {"id": "reason_wrong",     "name": "Wrong item made",        "is_active": True, "sort_order": 3},
-    {"id": "reason_spoilage",  "name": "Spoilage/Expired",       "is_active": True, "sort_order": 4},
-    {"id": "reason_cork",      "name": "Cork disintegrated",     "is_active": True, "sort_order": 5},
-    {"id": "reason_overpour",  "name": "Over-poured",            "is_active": True, "sort_order": 6},
-    {"id": "reason_training",  "name": "Training/Tasting",       "is_active": True, "sort_order": 7},
-    {"id": "reason_burned",    "name": "Burned batch",           "is_active": True, "sort_order": 8},
-    {"id": "reason_recall",    "name": "Product recall",         "is_active": True, "sort_order": 9},
-    {"id": "reason_other",     "name": "Other",                  "is_active": True, "sort_order": 10},
+    {"id": "reason_001", "name": "Dropped/Spilled",    "is_active": True, "sort_order": 1},
+    {"id": "reason_002", "name": "Guest sent back",    "is_active": True, "sort_order": 2},
+    {"id": "reason_003", "name": "Wrong item made",    "is_active": True, "sort_order": 3},
+    {"id": "reason_004", "name": "Spoilage/Expired",   "is_active": True, "sort_order": 4},
+    {"id": "reason_005", "name": "Cork disintegrated", "is_active": True, "sort_order": 5},
+    {"id": "reason_006", "name": "Over-poured",        "is_active": True, "sort_order": 6},
+    {"id": "reason_007", "name": "Training/Tasting",   "is_active": True, "sort_order": 7},
+    {"id": "reason_008", "name": "Burned batch",       "is_active": True, "sort_order": 8},
+    {"id": "reason_009", "name": "Product recall",     "is_active": True, "sort_order": 9},
+    {"id": "reason_010", "name": "Other",              "is_active": True, "sort_order": 10},
 ]
 
 # ─────────────────────────────────────────────
@@ -48,19 +47,19 @@ WASTE_REASONS = [
 # ─────────────────────────────────────────────
 
 def _spirit(name: str, subcategory: str) -> dict:
-    return {"name": name, "category": "spirit", "is_active": True}
+    return {"name": name, "category": "spirits", "subcategory": subcategory, "unit": "oz", "serving_size": 1.5, "bottle_size": 750.0, "is_active": True}
 
 def _wine(name: str) -> dict:
-    return {"name": name, "category": "wine", "is_active": True}
+    return {"name": name, "category": "wine", "unit": "oz", "serving_size": 5.0, "bottle_size": 750.0, "is_active": True}
 
 def _beer(name: str) -> dict:
-    return {"name": name, "category": "beer", "is_active": True}
+    return {"name": name, "category": "beer", "unit": "each", "serving_size": 1.0, "bottle_size": 12.0, "is_active": True}
 
 def _mixer(name: str) -> dict:
-    return {"name": name, "category": "mixer", "is_active": True}
+    return {"name": name, "category": "mixers", "unit": "oz", "serving_size": 1.0, "is_active": True}
 
 def _batch(name: str) -> dict:
-    return {"name": name, "category": "batch", "is_active": True}
+    return {"name": name, "category": "prep", "unit": "oz", "serving_size": 1.0, "is_active": True}
 
 
 ITEMS_RAW = [
@@ -345,8 +344,6 @@ async def seed_database(db: AsyncSession) -> None:
     """
     Idempotent seed: skips entities that already exist (checked by id / name).
     """
-    now = datetime.now(timezone.utc).isoformat()
-
     # ── Users ──────────────────────────────────────────────────────────────
     existing_users = (await db.execute(select(User.id))).scalars().all()
     existing_user_ids = set(existing_users)
@@ -357,9 +354,7 @@ async def seed_database(db: AsyncSession) -> None:
                 name=u["name"],
                 pin=u["pin"],
                 role=u["role"],
-                is_active=u["is_active"],
                 is_scheduled_today=u["is_scheduled_today"],
-                created_at=now,
             ))
 
     # ── Waste Reasons ──────────────────────────────────────────────────────
@@ -372,7 +367,6 @@ async def seed_database(db: AsyncSession) -> None:
                 name=r["name"],
                 is_active=r["is_active"],
                 sort_order=r["sort_order"],
-                created_at=now,
             ))
 
     # ── Items ──────────────────────────────────────────────────────────────
@@ -384,6 +378,11 @@ async def seed_database(db: AsyncSession) -> None:
                 id=f"item_{uuid.uuid4().hex[:12]}",
                 name=item_data["name"],
                 category=item_data["category"],
+                subcategory=item_data.get("subcategory"),
+                unit=item_data["unit"],
+                cost_per_unit=item_data.get("cost_per_unit"),
+                serving_size=item_data.get("serving_size"),
+                bottle_size=item_data.get("bottle_size"),
                 is_active=item_data["is_active"],
             ))
 

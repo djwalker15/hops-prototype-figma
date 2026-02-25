@@ -10,12 +10,12 @@ class ItemOut(BaseModel):
     id: str
     name: str
     category: str
+    subcategory: Optional[str] = None
+    unit: str
+    cost_per_unit: Optional[float] = None
+    serving_size: Optional[float] = None
+    bottle_size: Optional[float] = None
     is_active: bool
-    current_inventory: Optional[float] = None
-    inventory_unit: Optional[str] = None
-    typical_serving_size: Optional[int] = None
-    has_recipe: Optional[bool] = None
-    recipe_yield: Optional[int] = None
     ingredients: Optional[List[Any]] = None
 
 
@@ -25,12 +25,12 @@ class ItemCreate(BaseModel):
     id: Optional[str] = None
     name: str
     category: str
+    subcategory: Optional[str] = None
+    unit: str = "oz"
+    cost_per_unit: Optional[float] = None
+    serving_size: Optional[float] = None
+    bottle_size: Optional[float] = None
     is_active: bool = True
-    current_inventory: Optional[float] = None
-    inventory_unit: Optional[str] = None
-    typical_serving_size: Optional[int] = None
-    has_recipe: Optional[bool] = None
-    recipe_yield: Optional[int] = None
     ingredients: Optional[List[RecipeIngredientCreate]] = None
 
 
@@ -39,10 +39,10 @@ class ItemUpdate(BaseModel):
 
     name: Optional[str] = None
     category: Optional[str] = None
+    subcategory: Optional[str] = None
+    unit: Optional[str] = None
+    cost_per_unit: Optional[float] = None
+    serving_size: Optional[float] = None
+    bottle_size: Optional[float] = None
     is_active: Optional[bool] = None
-    current_inventory: Optional[float] = None
-    inventory_unit: Optional[str] = None
-    typical_serving_size: Optional[int] = None
-    has_recipe: Optional[bool] = None
-    recipe_yield: Optional[int] = None
     ingredients: Optional[List[RecipeIngredientCreate]] = None

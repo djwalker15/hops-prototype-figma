@@ -22,7 +22,10 @@ async def get_waste_entries(db: AsyncSession = Depends(get_db)):
 @router.post("")
 async def create_waste_entry(data: WasteEntryCreate, db: AsyncSession = Depends(get_db)):
     entry_id = data.id or f"waste_{uuid.uuid4().hex[:12]}"
-    timestamp = data.timestamp or datetime.now(timezone.utc).isoformat()
+    raw_ts = data.timestamp or datetime.now(timezone.utc)
+    if isinstance(raw_ts, str):
+        raw_ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+    timestamp = raw_ts
 
     entry = WasteEntry(
         id=entry_id,
@@ -39,7 +42,6 @@ async def create_waste_entry(data: WasteEntryCreate, db: AsyncSession = Depends(
         attributed_to_name=data.attributed_to_name,
         timestamp=timestamp,
         notes=data.notes,
-        photo_url=data.photo_url,
     )
     db.add(entry)
     await db.commit()

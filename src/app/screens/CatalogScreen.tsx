@@ -74,12 +74,11 @@ export function CatalogScreen() {
   // Form state for new/edit item
   const [formData, setFormData] = useState({
     name: '',
-    category: 'cocktail' as Item['category'],
-    typicalServingSize: 1,
-    currentInventory: 0,
-    inventoryUnit: 'bottles',
+    category: 'spirits' as Item['category'],
+    subcategory: '',
+    unit: 'oz',
+    servingSize: 1.5,
     hasRecipe: false,
-    recipeYield: 1,
     ingredients: [] as { itemId: string; quantity: number; unit: string }[],
   });
 
@@ -95,23 +94,21 @@ export function CatalogScreen() {
       setFormData({
         name: item.name,
         category: item.category,
-        typicalServingSize: item.typicalServingSize || 1,
-        currentInventory: item.currentInventory || 0,
-        inventoryUnit: item.inventoryUnit || 'bottles',
-        hasRecipe: item.hasRecipe || false,
-        recipeYield: item.recipeYield || 1,
+        subcategory: item.subcategory || '',
+        unit: item.unit || 'oz',
+        servingSize: item.servingSize || 1.5,
+        hasRecipe: item.category === 'recipe' || (item.ingredients?.length ?? 0) > 0,
         ingredients: item.ingredients || [],
       });
     } else {
       setEditingItem(null);
       setFormData({
         name: '',
-        category: 'cocktail',
-        typicalServingSize: 1,
-        currentInventory: 0,
-        inventoryUnit: 'bottles',
+        category: 'spirits',
+        subcategory: '',
+        unit: 'oz',
+        servingSize: 1.5,
         hasRecipe: false,
-        recipeYield: 1,
         ingredients: [],
       });
     }
@@ -126,9 +123,14 @@ export function CatalogScreen() {
         await updateItemMutation.mutateAsync({ id: editingItem.id, updates: formData });
       } else {
         const newItem: Item = {
-          id: `r${Date.now()}`,
-          ...formData,
+          id: `item_${Date.now()}`,
+          name: formData.name,
+          category: formData.category,
+          subcategory: formData.subcategory || undefined,
+          unit: formData.unit,
+          servingSize: formData.servingSize,
           isActive: true,
+          ingredients: formData.hasRecipe ? formData.ingredients : undefined,
         };
         await addItemMutation.mutateAsync(newItem);
       }
@@ -196,14 +198,16 @@ export function CatalogScreen() {
 
   const getCategoryIcon = (category: Item['category']) => {
     switch (category) {
-      case 'cocktail':
+      case 'spirits':
         return <Wine className="h-4 w-4" />;
       case 'beer':
         return <Beer className="h-4 w-4" />;
       case 'wine':
         return <Grape className="h-4 w-4" />;
-      case 'batch':
+      case 'prep':
         return <Beaker className="h-4 w-4" />;
+      case 'recipe':
+        return <ChefHat className="h-4 w-4" />;
       default:
         return <MoreHorizontal className="h-4 w-4" />;
     }
@@ -211,47 +215,53 @@ export function CatalogScreen() {
 
   const getCategoryColor = (category: Item['category']) => {
     switch (category) {
-      case 'cocktail':
+      case 'spirits':
         return 'bg-purple-100 text-purple-700';
       case 'beer':
         return 'bg-amber-100 text-amber-700';
       case 'wine':
         return 'bg-red-100 text-red-700';
-      case 'batch':
+      case 'prep':
         return 'bg-blue-100 text-blue-700';
+      case 'recipe':
+        return 'bg-green-100 text-green-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
   };
 
   // Handle Recipe Builder save
-  const handleRecipeBuilderSave = (recipeItem: Partial<Item>, newIngredientItems: Partial<Item>[]) => {
-    // First, add all new ingredient items to the catalog
-    const newItems = newIngredientItems.map(item => ({
-      ...item,
-      id: item.id || `i${Date.now()}-${Math.random()}`,
-      isActive: true,
-    } as Item));
-    
-    // Update the catalog with new ingredient items
-    const updatedItems = [...items, ...newItems];
+  const handleRecipeBuilderSave = async (recipeItem: Partial<Item>, newIngredientItems: Partial<Item>[]) => {
+    try {
+      // Add any new ingredient items first
+      for (const newIngItem of newIngredientItems) {
+        await addItemMutation.mutateAsync({
+          ...newIngItem,
+          id: newIngItem.id || `item_${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          name: newIngItem.name || '',
+          category: newIngItem.category || 'mixers',
+          unit: newIngItem.unit || 'oz',
+          isActive: true,
+        } as Item);
+      }
 
-    // Then add or update the recipe item
-    if (recipeBuilderEditItem) {
-      // Update existing
-      setItems(
-        updatedItems.map(i =>
-          i.id === recipeBuilderEditItem.id ? { ...i, ...recipeItem } as Item : i
-        )
-      );
-    } else {
-      // Add new recipe
-      const finalRecipeItem: Item = {
-        ...(recipeItem as Item),
-        id: `r${Date.now()}`,
-        isActive: true,
-      };
-      setItems([...updatedItems, finalRecipeItem]);
+      // Then add or update the recipe item
+      if (recipeBuilderEditItem) {
+        await updateItemMutation.mutateAsync({
+          id: recipeBuilderEditItem.id,
+          updates: recipeItem,
+        });
+      } else {
+        await addItemMutation.mutateAsync({
+          ...(recipeItem as Item),
+          id: `recipe_${Date.now()}`,
+          category: 'recipe',
+          unit: recipeItem.unit || 'serving',
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save recipe:', error);
     }
 
     // Close the recipe builder
@@ -347,14 +357,12 @@ export function CatalogScreen() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="cocktail">Cocktails</SelectItem>
-                    <SelectItem value="wine">Wines</SelectItem>
-                    <SelectItem value="beer">Beers</SelectItem>
-                    <SelectItem value="spirit">Spirits</SelectItem>
-                    <SelectItem value="mixer">Mixers</SelectItem>
-                    <SelectItem value="garnish">Garnishes</SelectItem>
-                    <SelectItem value="batch">Batch Items</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="spirits">Spirits</SelectItem>
+                    <SelectItem value="wine">Wine</SelectItem>
+                    <SelectItem value="beer">Beer</SelectItem>
+                    <SelectItem value="mixers">Mixers</SelectItem>
+                    <SelectItem value="prep">Prep</SelectItem>
+                    <SelectItem value="recipe">Recipes</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -407,28 +415,27 @@ export function CatalogScreen() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="cocktail">Cocktail</SelectItem>
+                                <SelectItem value="spirits">Spirits</SelectItem>
                                 <SelectItem value="wine">Wine</SelectItem>
                                 <SelectItem value="beer">Beer</SelectItem>
-                                <SelectItem value="spirit">Spirit</SelectItem>
-                                <SelectItem value="mixer">Mixer</SelectItem>
-                                <SelectItem value="garnish">Garnish</SelectItem>
-                                <SelectItem value="batch">Batch</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
+                                <SelectItem value="mixers">Mixers</SelectItem>
+                                <SelectItem value="prep">Prep</SelectItem>
+                                <SelectItem value="recipe">Recipe</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="servingSize">Serving Size</Label>
+                            <Label htmlFor="servingSize">Serving Size (oz)</Label>
                             <Input
                               id="servingSize"
                               type="number"
-                              min="1"
-                              value={formData.typicalServingSize}
-                              onChange={(e) => setFormData({ 
-                                ...formData, 
-                                typicalServingSize: parseInt(e.target.value) || 1 
+                              min="0.25"
+                              step="0.25"
+                              value={formData.servingSize}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                servingSize: parseFloat(e.target.value) || 1
                               })}
                             />
                           </div>
@@ -436,35 +443,29 @@ export function CatalogScreen() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
-                            <Label htmlFor="inventory">Current Inventory</Label>
+                            <Label htmlFor="subcategory">Subcategory</Label>
                             <Input
-                              id="inventory"
-                              type="number"
-                              min="0"
-                              step="0.1"
-                              value={formData.currentInventory}
-                              onChange={(e) => setFormData({ 
-                                ...formData, 
-                                currentInventory: parseFloat(e.target.value) || 0 
-                              })}
+                              id="subcategory"
+                              value={formData.subcategory}
+                              onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                              placeholder="e.g., Vodka, Bourbon"
                             />
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="inventoryUnit">Unit</Label>
-                            <Select 
-                              value={formData.inventoryUnit} 
-                              onValueChange={(value) => setFormData({ ...formData, inventoryUnit: value })}
+                            <Label htmlFor="unit">Unit</Label>
+                            <Select
+                              value={formData.unit}
+                              onValueChange={(value) => setFormData({ ...formData, unit: value })}
                             >
-                              <SelectTrigger id="inventoryUnit">
+                              <SelectTrigger id="unit">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="bottles">Bottles</SelectItem>
                                 <SelectItem value="oz">oz</SelectItem>
                                 <SelectItem value="ml">ml</SelectItem>
                                 <SelectItem value="each">Each</SelectItem>
-                                <SelectItem value="bunches">Bunches</SelectItem>
+                                <SelectItem value="serving">Serving</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -491,20 +492,6 @@ export function CatalogScreen() {
 
                         {formData.hasRecipe && (
                           <div className="space-y-4 pl-2 border-l-2 border-[#8B6F47]">
-                            <div className="space-y-2">
-                              <Label htmlFor="recipeYield">Recipe Yield (servings)</Label>
-                              <Input
-                                id="recipeYield"
-                                type="number"
-                                min="1"
-                                value={formData.recipeYield}
-                                onChange={(e) => setFormData({ 
-                                  ...formData, 
-                                  recipeYield: parseInt(e.target.value) || 1 
-                                })}
-                              />
-                            </div>
-
                             {/* Ingredients List */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
@@ -685,16 +672,16 @@ export function CatalogScreen() {
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-600">
                           <span className="capitalize">{item.category}</span>
-                          {item.currentInventory !== undefined && (
+                          {item.subcategory && (
                             <>
                               <span>•</span>
-                              <span>{item.currentInventory} {item.inventoryUnit}</span>
+                              <span>{item.subcategory}</span>
                             </>
                           )}
-                          {item.hasRecipe && (
+                          {item.category === 'recipe' && (
                             <>
                               <span>•</span>
-                              <span className="text-purple-600">Has Recipe</span>
+                              <span className="text-purple-600">Recipe</span>
                             </>
                           )}
                           {!item.isActive && (

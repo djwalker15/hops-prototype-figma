@@ -13,7 +13,7 @@ router = APIRouter()
 
 async def _attach_ingredients(db: AsyncSession, item: Item) -> dict:
     item_dict = ItemOut.model_validate(item).model_dump(by_alias=True)
-    if item.category == "recipe" or item.has_recipe:
+    if item.category == "recipe":
         result = await db.execute(
             select(RecipeIngredient).where(RecipeIngredient.recipe_id == item.id)
         )
@@ -53,12 +53,12 @@ async def create_item(data: ItemCreate, db: AsyncSession = Depends(get_db)):
         id=item_id,
         name=data.name,
         category=data.category,
+        subcategory=data.subcategory,
+        unit=data.unit,
+        cost_per_unit=data.cost_per_unit,
+        serving_size=data.serving_size,
+        bottle_size=data.bottle_size,
         is_active=data.is_active,
-        current_inventory=data.current_inventory,
-        inventory_unit=data.inventory_unit,
-        typical_serving_size=data.typical_serving_size,
-        has_recipe=data.has_recipe,
-        recipe_yield=data.recipe_yield,
     )
     db.add(item)
 
