@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { getWasteEntries, getCurrentUser } from '../data/storage';
-import { WasteEntry } from '../data/mockData';
+import { getCurrentUser } from '../data/storage';
+import { useWasteEntries } from '../hooks/useWasteEntries';
 import { BottomNav } from '../components/BottomNav';
 import { Header } from '../components/Header';
 import { QuickLogSheet } from '../components/QuickLogSheet';
@@ -12,30 +12,14 @@ import { format, parseISO, isToday, isYesterday } from 'date-fns';
 export function HomeScreen() {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
-  const [entries, setEntries] = useState<WasteEntry[]>([]);
+  const { data: entries = [] } = useWasteEntries();
   const [quickLogOpen, setQuickLogOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   // Redirect if not logged in
   if (!currentUser) {
     navigate('/');
     return null;
   }
-
-  useEffect(() => {
-    loadEntries();
-  }, []);
-
-  const loadEntries = async () => {
-    try {
-      const allEntries = await getWasteEntries();
-      setEntries(allEntries);
-    } catch (error) {
-      console.error('Failed to load entries:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const todayCount = entries.filter(e => isToday(parseISO(e.timestamp))).length;
   const totalCount = entries.length;
@@ -250,7 +234,7 @@ export function HomeScreen() {
       <QuickLogSheet 
         open={quickLogOpen} 
         onOpenChange={setQuickLogOpen}
-        onSuccess={loadEntries}
+        onSuccess={() => {}}
       />
     </div>
   );

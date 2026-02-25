@@ -3,6 +3,8 @@ import { router } from './routes.tsx';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState } from 'react';
 import { initializeDatabase, migrateWasteReasons, migrateUsers } from './data/storage';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './hooks/queryClient';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -76,9 +78,9 @@ export default function App() {
   }
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <Toaster position="top-center" />
-    </>
+    </QueryClientProvider>
   );
 }

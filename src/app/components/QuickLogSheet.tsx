@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
-import { mockItems, Item, WASTE_REASONS, User, WasteReason } from '../data/mockData';
-import { getCurrentUser, addWasteEntry, updateInventoryForWaste, getItems, getUsers, getWasteReasons } from '../data/storage';
+import { Item, User, WasteReason } from '../data/mockData';
+import { getCurrentUser } from '../data/storage';
+import { useItems } from '../hooks/useItems';
+import { useUsers } from '../hooks/useUsers';
+import { useWasteReasons } from '../hooks/useWasteReasons';
+import { useAddWasteEntry } from '../hooks/useWasteEntries';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
@@ -31,25 +35,28 @@ interface QuickLogSheetProps {
 export function QuickLogSheet({ open, onOpenChange, onSuccess }: QuickLogSheetProps) {
   const currentUser = getCurrentUser();
 
+  const { data: items = [] } = useItems();
+  const { data: users = [] } = useUsers();
+  const { data: wasteReasons = [] } = useWasteReasons();
+  const addEntryMutation = useAddWasteEntry();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [amountType, setAmountType] = useState<'serving' | 'bottle'>('serving');
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState('');
   const [showResults, setShowResults] = useState(false);
-  const [items, setItems] = useState<Item[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [wasteReasons, setWasteReasons] = useState<WasteReason[]>([]);
   const [attributedToUserId, setAttributedToUserId] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // Load items and users from storage when dialog opens
+  // Reset form when dialog closes; set default attributed user when it opens
   useEffect(() => {
     if (open) {
-      loadData();
+      if (currentUser && !attributedToUserId) {
+        setAttributedToUserId(currentUser.id);
+      }
     } else {
-      // Reset when closing
       setSelectedItem(null);
       setAmountType('serving');
       setQuantity(1);
@@ -60,31 +67,6 @@ export function QuickLogSheet({ open, onOpenChange, onSuccess }: QuickLogSheetPr
       setNotes('');
     }
   }, [open]);
-
-  const loadData = async () => {
-    try {
-      const storedItems = await getItems();
-      setItems(storedItems);
-      
-      const storedUsers = await getUsers();
-      console.log('📊 Loaded users from database:', storedUsers);
-      // Don't filter by isActive - just use all users
-      console.log('✅ All users available:', storedUsers);
-      setUsers(storedUsers);
-      
-      // Only set default if not already set
-      if (currentUser && storedUsers.length > 0 && !attributedToUserId) {
-        console.log('🎯 Setting default attributed user to:', currentUser.id, currentUser.name);
-        setAttributedToUserId(currentUser.id);
-      }
-
-      const storedWasteReasons = await getWasteReasons();
-      setWasteReasons(storedWasteReasons);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toast.error('Failed to load data');
-    }
-  };
 
   if (!currentUser) return null;
 
@@ -146,8 +128,7 @@ export function QuickLogSheet({ open, onOpenChange, onSuccess }: QuickLogSheetPr
     };
 
     try {
-      await addWasteEntry(entry);
-      // Success feedback
+      await addEntryMutation.mutateAsync(entry);
       toast.success('Waste logged successfully!');
     } catch (error) {
       console.error('Failed to log waste:', error);

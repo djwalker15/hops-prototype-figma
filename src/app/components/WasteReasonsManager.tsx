@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { WasteReason } from '../data/mockData';
-import { getWasteReasons, addWasteReason, updateWasteReason, deleteWasteReason } from '../data/storage';
+import { useWasteReasons, useAddWasteReason, useUpdateWasteReason, useDeleteWasteReason } from '../hooks/useWasteReasons';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
@@ -199,29 +199,22 @@ function DraggableReason({
 }
 
 export function WasteReasonsManager() {
-  const [reasons, setReasons] = useState<WasteReason[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: reasons = [], isLoading: loading } = useWasteReasons();
+  const addMutation = useAddWasteReason();
+  const updateMutation = useUpdateWasteReason();
+  const deleteMutation = useDeleteWasteReason();
+
+  const [localReasons, setLocalReasons] = useState<WasteReason[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [newReasonName, setNewReasonName] = useState('');
   const [hasReordered, setHasReordered] = useState(false);
 
+  // Keep local copy for drag-and-drop reordering
   useEffect(() => {
-    loadReasons();
-  }, []);
-
-  const loadReasons = async () => {
-    try {
-      const loadedReasons = await getWasteReasons();
-      setReasons(loadedReasons);
-    } catch (error) {
-      console.error('Failed to load waste reasons:', error);
-      toast.error('Failed to load waste reasons');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLocalReasons(reasons);
+  }, [reasons]);
 
   const handleAdd = async () => {
     if (!newReasonName.trim()) {
@@ -230,17 +223,16 @@ export function WasteReasonsManager() {
     }
 
     try {
-      const maxSortOrder = reasons.length > 0 
-        ? Math.max(...reasons.map(r => r.sortOrder))
+      const maxSortOrder = localReasons.length > 0
+        ? Math.max(...localReasons.map(r => r.sortOrder))
         : 0;
 
-      await addWasteReason({
+      await addMutation.mutateAsync({
         name: newReasonName.trim(),
         isActive: true,
         sortOrder: maxSortOrder + 1,
       });
 
-      await loadReasons();
       setNewReasonName('');
       setIsAdding(false);
       toast.success('Waste reason added');
@@ -262,8 +254,7 @@ export function WasteReasonsManager() {
     }
 
     try {
-      await updateWasteReason(id, { name: editName.trim() });
-      await loadReasons();
+      await updateMutation.mutateAsync({ id, updates: { name: editName.trim() } });
       setEditingId(null);
       setEditName('');
       toast.success('Waste reason updated');
@@ -280,8 +271,7 @@ export function WasteReasonsManager() {
 
   const handleToggleActive = async (reason: WasteReason) => {
     try {
-      await updateWasteReason(reason.id, { isActive: !reason.isActive });
-      await loadReasons();
+      await updateMutation.mutateAsync({ id: reason.id, updates: { isActive: !reason.isActive } });
       toast.success(reason.isActive ? 'Reason deactivated' : 'Reason activated');
     } catch (error) {
       console.error('Failed to toggle reason:', error);
@@ -295,8 +285,7 @@ export function WasteReasonsManager() {
     }
 
     try {
-      await deleteWasteReason(id);
-      await loadReasons();
+      await deleteMutation.mutateAsync(id);
       toast.success('Waste reason deleted');
     } catch (error) {
       console.error('Failed to delete waste reason:', error);
@@ -305,22 +294,15 @@ export function WasteReasonsManager() {
   };
 
   const moveReason = (dragIndex: number, hoverIndex: number) => {
-    const newReasons = [...reasons];
+    const newReasons = [...localReasons];
     const draggedItem = newReasons[dragIndex];
-    
-    // Remove the dragged item
     newReasons.splice(dragIndex, 1);
-    
-    // Insert it at the new position
     newReasons.splice(hoverIndex, 0, draggedItem);
-    
-    // Update sortOrder for all items based on new positions
     const reorderedReasons = newReasons.map((reason, index) => ({
       ...reason,
       sortOrder: index + 1,
     }));
-    
-    setReasons(reorderedReasons);
+    setLocalReasons(reorderedReasons);
     setHasReordered(true);
   };
 
@@ -328,25 +310,23 @@ export function WasteReasonsManager() {
   useEffect(() => {
     const saveOrder = async () => {
       try {
-        // Save each reason with its new sortOrder
-        for (const reason of reasons) {
-          await updateWasteReason(reason.id, { sortOrder: reason.sortOrder });
+        for (const reason of localReasons) {
+          await updateMutation.mutateAsync({ id: reason.id, updates: { sortOrder: reason.sortOrder } });
         }
       } catch (error) {
         console.error('Failed to save order:', error);
       }
     };
 
-    // Debounce the save to avoid too many API calls
     const timeoutId = setTimeout(() => {
-      if (reasons.length > 0 && hasReordered) {
+      if (localReasons.length > 0 && hasReordered) {
         saveOrder();
         setHasReordered(false);
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [reasons, hasReordered]);
+  }, [localReasons, hasReordered]);
 
   if (loading) {
     return (
@@ -417,14 +397,14 @@ export function WasteReasonsManager() {
 
       {/* Reasons List */}
       <div className="space-y-2">
-        {reasons.length === 0 ? (
+        {localReasons.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <p>No waste reasons configured</p>
             <p className="text-sm mt-1">Click "Add Reason" to create one</p>
           </div>
         ) : (
           <DndProvider backend={HTML5Backend}>
-            {reasons.map((reason, index) => (
+            {localReasons.map((reason, index) => (
               <DraggableReason
                 key={reason.id}
                 reason={reason}

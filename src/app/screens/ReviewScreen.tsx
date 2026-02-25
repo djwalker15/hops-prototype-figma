@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { BottomNav } from '../components/BottomNav';
 import { Header } from '../components/Header';
-import { getCurrentUser, getWasteEntries, clearWasteEntries, exportToCSV, getWasteReasons } from '../data/storage';
+import { getCurrentUser, exportToCSV } from '../data/storage';
 import { type WasteEntry, type WasteReason, WASTE_REASONS } from '../data/mockData';
+import { useWasteEntries, useClearWasteEntries } from '../hooks/useWasteEntries';
+import { useWasteReasons } from '../hooks/useWasteReasons';
 import { QuickLogSheet } from '../components/QuickLogSheet';
 import { Button } from '../components/ui/button';
 import {
@@ -19,9 +21,9 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date
 export function ReviewScreen() {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
-  const [allEntries, setAllEntries] = useState<WasteEntry[]>([]);
-  const [wasteReasons, setWasteReasons] = useState<WasteReason[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allEntries = [] } = useWasteEntries();
+  const { data: wasteReasons = [] } = useWasteReasons();
+  const clearEntriesMutation = useClearWasteEntries();
 
   const [filterReason, setFilterReason] = useState<string>('all');
   const [filterPeriod, setFilterPeriod] = useState<string>('all');
@@ -32,25 +34,6 @@ export function ReviewScreen() {
     navigate('/');
     return null;
   }
-
-  // Load entries on mount
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const entries = await getWasteEntries();
-      setAllEntries(entries);
-      const reasons = await getWasteReasons();
-      setWasteReasons(reasons);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      setAllEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Filter entries
   const filteredEntries = useMemo(() => {
@@ -85,12 +68,7 @@ export function ReviewScreen() {
 
   const handleClearAll = async () => {
     if (window.confirm('Are you sure you want to delete ALL waste entries? This cannot be undone.')) {
-      try {
-        await clearWasteEntries();
-        await loadData();
-      } catch (error) {
-        console.error('Failed to clear entries:', error);
-      }
+      await clearEntriesMutation.mutateAsync();
     }
   };
 
@@ -101,11 +79,6 @@ export function ReviewScreen() {
     } catch (error) {
       return timestamp;
     }
-  };
-
-  const handleRefresh = () => {
-    // Force a re-render by navigating to self
-    window.location.reload();
   };
 
   return (
@@ -283,7 +256,7 @@ export function ReviewScreen() {
       <QuickLogSheet 
         open={quickLogOpen} 
         onOpenChange={setQuickLogOpen}
-        onSuccess={handleRefresh}
+        onSuccess={() => {}}
       />
     </div>
   );

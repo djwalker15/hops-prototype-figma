@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { setCurrentUser, authenticateUser, getUsers } from '../data/storage';
+import { useState } from 'react';
+import { setCurrentUser } from '../data/storage';
 import { User } from '../data/mockData';
+import { useUsers } from '../hooks/useUsers';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Wine, ChevronDown } from 'lucide-react';
@@ -14,30 +15,12 @@ import {
 } from '../components/ui/select';
 
 export function LoginScreen() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loading } = useUsers();
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [showOtherStaff, setShowOtherStaff] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Load users from backend
-    const loadUsers = async () => {
-      try {
-        const loadedUsers = await getUsers();
-        setUsers(loadedUsers);
-      } catch (error) {
-        console.error('Failed to load users:', error);
-        setError('Failed to load users');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadUsers();
-  }, []);
 
   const scheduledUsers = users.filter(u => u.isScheduledToday);
   const otherUsers = users.filter(u => !u.isScheduledToday);

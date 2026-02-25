@@ -4,8 +4,9 @@ import { BottomNav } from '../components/BottomNav';
 import { Header } from '../components/Header';
 import { RecipeBuilder } from '../components/RecipeBuilder';
 import { WasteReasonsManager } from '../components/WasteReasonsManager';
-import { getCurrentUser, getItems, setItems as saveItems, addItem, updateItem } from '../data/storage';
+import { getCurrentUser } from '../data/storage';
 import { type Item } from '../data/mockData';
+import { useItems, useAddItem, useUpdateItem } from '../hooks/useItems';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
@@ -44,8 +45,9 @@ import { Label } from '../components/ui/label';
 
 export function CatalogScreen() {
   const navigate = useNavigate();
-  const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: items = [], isLoading: loading } = useItems();
+  const addItemMutation = useAddItem();
+  const updateItemMutation = useUpdateItem();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -57,35 +59,17 @@ export function CatalogScreen() {
   // Check auth on mount and route changes
   useEffect(() => {
     const currentUser = getCurrentUser();
-    console.log('CatalogScreen - Current User:', currentUser); // Debug log
-    
+
     if (!currentUser) {
-      console.log('CatalogScreen - No user, redirecting to login');
       navigate('/', { replace: true });
       return;
     }
 
     if (currentUser.role !== 'manager') {
-      console.log('CatalogScreen - Not a manager, redirecting to home');
       navigate('/home', { replace: true });
       return;
     }
-
-    // Load items from storage (now async)
-    loadItems();
   }, [navigate]);
-
-  const loadItems = async () => {
-    try {
-      const storedItems = await getItems();
-      setItems(storedItems || []);
-    } catch (error) {
-      console.error('Failed to load items:', error);
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Form state for new/edit item
   const [formData, setFormData] = useState({
@@ -139,23 +123,15 @@ export function CatalogScreen() {
 
     try {
       if (editingItem) {
-        // Update existing item
-        const updatedItem = { ...editingItem, ...formData };
-        await updateItem(editingItem.id, formData);
-        setItems(items.map(i => 
-          i.id === editingItem.id ? updatedItem : i
-        ));
+        await updateItemMutation.mutateAsync({ id: editingItem.id, updates: formData });
       } else {
-        // Create new item
         const newItem: Item = {
           id: `r${Date.now()}`,
           ...formData,
           isActive: true,
         };
-        await addItem(newItem);
-        setItems([...items, newItem]);
+        await addItemMutation.mutateAsync(newItem);
       }
-
       setIsDialogOpen(false);
       setEditingItem(null);
     } catch (error) {
@@ -167,14 +143,8 @@ export function CatalogScreen() {
   const handleToggleActive = async (itemId: string) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return;
-
     try {
-      await updateItem(itemId, { isActive: !item.isActive });
-      setItems(items.map(i => 
-        i.id === itemId 
-          ? { ...i, isActive: !i.isActive }
-          : i
-      ));
+      await updateItemMutation.mutateAsync({ id: itemId, updates: { isActive: !item.isActive } });
     } catch (error) {
       console.error('Failed to toggle item:', error);
       alert('Failed to update item. Please try again.');
@@ -183,11 +153,8 @@ export function CatalogScreen() {
 
   const handleDeleteItem = async (itemId: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
-
     try {
-      // We don't have a delete endpoint, so we'll just mark as inactive
-      await updateItem(itemId, { isActive: false });
-      setItems(items.filter(i => i.id !== itemId));
+      await updateItemMutation.mutateAsync({ id: itemId, updates: { isActive: false } });
     } catch (error) {
       console.error('Failed to delete item:', error);
       alert('Failed to delete item. Please try again.');

@@ -1,9 +1,8 @@
-// Supabase Backend Storage for H.O.P.S. Waste Logger
+// FastAPI Backend Storage for H.O.P.S. Waste Logger
 
 import { WasteEntry, User, Item, WasteReason } from './mockData';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-68fdbf91`;
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // Helper function to make API calls
 async function apiFetch(endpoint: string, options: RequestInit = {}) {
@@ -11,7 +10,6 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${publicAnonKey}`,
       ...options.headers,
     },
   });
