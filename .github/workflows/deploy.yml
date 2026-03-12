@@ -1,0 +1,179 @@
+name: Deploy to Cloud Run
+
+# ── GCP One-Time Setup ────────────────────────────────────────────────────────
+#
+# Run the following once from a machine with `gcloud` authenticated:
+#
+#   PROJECT_ID="hops-dev-488516"
+#   PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+#   GITHUB_REPO="OWNER/REPO"   # e.g. djwalker/waste-logger-mvp
+#   SA="waste-logger-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+#
+#   # 1. Enable required APIs
+#   gcloud services enable \
+#     run.googleapis.com \
+#     artifactregistry.googleapis.com \
+#     iam.googleapis.com \
+#     iamcredentials.googleapis.com
+#
+#   # 2. Create Artifact Registry repository
+#   gcloud artifacts repositories create waste-logger \
+#     --repository-format=docker --location=us-south1
+#
+#   # 3. Create deployer service account
+#   gcloud iam service-accounts create waste-logger-deployer \
+#     --display-name="Waste Logger GitHub Actions Deployer" \
+#     --project=$PROJECT_ID
+#
+#   # 4. Grant IAM roles to the service account
+#   for ROLE in roles/run.admin roles/artifactregistry.writer \
+#               roles/iam.serviceAccountUser roles/storage.admin; do
+#     gcloud projects add-iam-policy-binding $PROJECT_ID \
+#       --member="serviceAccount:${SA}" --role=$ROLE
+#   done
+#
+#   # 5. Create Workload Identity Pool
+#   gcloud iam workload-identity-pools create github-pool \
+#     --location=global \
+#     --display-name="GitHub Actions Pool" \
+#     --project=$PROJECT_ID
+#
+#   # 6. Create OIDC Provider (scoped to this repo only)
+#   gcloud iam workload-identity-pools providers create-oidc github-provider \
+#     --location=global \
+#     --workload-identity-pool=github-pool \
+#     --display-name="GitHub Actions Provider" \
+#     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.actor=assertion.actor,attribute.aud=assertion.aud" \
+#     --attribute-condition="assertion.repository=='${GITHUB_REPO}'" \
+#     --issuer-uri="https://token.actions.githubusercontent.com" \
+#     --project=$PROJECT_ID
+#
+#   # 7. Allow the GitHub Actions identity to impersonate the service account
+#   POOL_RESOURCE="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool"
+#   gcloud iam service-accounts add-iam-policy-binding $SA \
+#     --role=roles/iam.workloadIdentityUser \
+#     --member="principalSet://iam.googleapis.com/${POOL_RESOURCE}/attribute.repository/${GITHUB_REPO}"
+#
+# ── GitHub Secrets Required ───────────────────────────────────────────────────
+#
+#   DATABASE_URL  — Supabase PostgreSQL connection string
+#                   e.g. postgresql://postgres.[ref]:[password]@[host]:5432/postgres
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: hops-dev-488516
+  REGION: us-south1
+  REGISTRY: us-south1-docker.pkg.dev
+  REPO: waste-logger
+  BACKEND_SERVICE: waste-logger-backend
+  FRONTEND_SERVICE: waste-logger-frontend
+  WIF_PROVIDER: projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  SERVICE_ACCOUNT: waste-logger-deployer@hops-dev-488516.iam.gserviceaccount.com
+
+jobs:
+  deploy-backend:
+    name: Build and Deploy Backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      backend_url: ${{ steps.get_url.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build backend image
+        run: |
+          docker build ./backend \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:latest
+
+      - name: Push backend image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:latest
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --port=8080 \
+            --quiet
+
+      - name: Get backend service URL
+        id: get_url
+        run: |
+          URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build frontend image
+        run: |
+          docker build . \
+            --build-arg VITE_API_URL=${{ needs.deploy-backend.outputs.backend_url }} \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:latest
+
+      - name: Push frontend image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:latest
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
+            --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port=8080 \
+            --quiet
+
+      - name: Print frontend URL
+        run: |
+          gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)'
