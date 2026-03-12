@@ -73,7 +73,7 @@ env:
   REPO: waste-logger
   BACKEND_SERVICE: waste-logger-backend
   FRONTEND_SERVICE: waste-logger-frontend
-  WIF_PROVIDER: projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  WIF_PROVIDER: projects/95353715793/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SERVICE_ACCOUNT: waste-logger-deployer@hops-dev-488516.iam.gserviceaccount.com
 
 jobs:
