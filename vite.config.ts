@@ -16,6 +16,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    proxy: {
+      '/seed': 'http://localhost:8000',
+      '/items': 'http://localhost:8000',
+      '/users': 'http://localhost:8000',
+      '/waste-entries': 'http://localhost:8000',
+      '/waste-reasons': 'http://localhost:8000',
+      '/health': 'http://localhost:8000',
+    },
+  },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],

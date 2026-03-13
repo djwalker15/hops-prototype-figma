@@ -89,3 +89,46 @@ You stopped updating the transcript document.
 ### Assistant
 
 Noted — will keep the transcript current going forward after every meaningful exchange.
+
+### User
+
+Getting `asyncpg.exceptions.InvalidPasswordError: password authentication failed for user "postgres"` running locally.
+
+### Assistant
+
+Diagnosed as a credentials issue in `backend/.env`. Hypotheses were: Supabase project auto-paused (free tier pauses after 7 days of inactivity) or pooler URL format changed. User resolved it: the Supabase database password had been reset but `backend/.env` still had the old value.
+
+**Fix:** Update `DATABASE_URL` in `backend/.env` with the new password from Supabase (Project Settings → Database → Connection string → Session mode, port 5432). Also update the `DATABASE_URL` GitHub Actions secret so the deployed backend picks up the new password.
+
+### User
+
+Trying to access the app from a mobile device on the local network (Vite already on `--host 0.0.0.0`, Windows→WSL port forwarded). App loads but immediately shows "Initialization Error" and no useful logs.
+
+### Assistant
+
+Root cause: `API_BASE` in `src/app/data/storage.ts` falls back to `http://localhost:8000` when `VITE_API_URL` is not set. From the mobile device, `localhost` resolves to the phone itself — not the dev machine — so the first `POST /seed` call fails and `App.tsx` enters the `initError` state.
+
+**Fix — 2 files:**
+
+`src/app/data/storage.ts` — change the fallback from `'http://localhost:8000'` to `''` (empty string → relative URLs):
+```ts
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+```
+
+`vite.config.ts` — add a proxy inside the existing `server` block so the Vite dev server forwards API routes to the local backend:
+```ts
+proxy: {
+  '/seed': 'http://localhost:8000',
+  '/items': 'http://localhost:8000',
+  '/users': 'http://localhost:8000',
+  '/waste-entries': 'http://localhost:8000',
+  '/waste-reasons': 'http://localhost:8000',
+  '/health': 'http://localhost:8000',
+},
+```
+
+Production is unaffected — `VITE_API_URL` is always baked in at Docker build time so the empty-string fallback never activates.
+
+### User
+
+Confirmed working — mobile device now loads the app successfully.

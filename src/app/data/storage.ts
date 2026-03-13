@@ -2,7 +2,7 @@
 
 import { WasteEntry, User, Item, WasteReason } from './mockData';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 // Helper function to make API calls
 async function apiFetch(endpoint: string, options: RequestInit = {}) {
