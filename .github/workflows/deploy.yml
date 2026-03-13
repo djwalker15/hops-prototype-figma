@@ -18,7 +18,7 @@ name: Deploy to Cloud Run
 #
 #   # 2. Create Artifact Registry repository
 #   gcloud artifacts repositories create waste-logger \
-#     --repository-format=docker --location=us-south1
+#     --repository-format=docker --location=us-central1
 #
 #   # 3. Create deployer service account
 #   gcloud iam service-accounts create waste-logger-deployer \
@@ -68,8 +68,8 @@ on:
 
 env:
   PROJECT_ID: hops-dev-488516
-  REGION: us-south1
-  REGISTRY: us-south1-docker.pkg.dev
+  REGION: us-central1
+  REGISTRY: us-central1-docker.pkg.dev
   REPO: waste-logger
   BACKEND_SERVICE: waste-logger-backend
   FRONTEND_SERVICE: waste-logger-frontend

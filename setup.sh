@@ -14,7 +14,7 @@
 
   # 2. Create Artifact Registry repository
   gcloud artifacts repositories create waste-logger \
-    --repository-format=docker --location=us-south1
+    --repository-format=docker --location=us-central1
 
   # 3. Create deployer service account
   gcloud iam service-accounts create waste-logger-deployer \

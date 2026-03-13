@@ -45,3 +45,47 @@ Added full CI/CD pipeline for Google Cloud Run deployment. Created 3 files:
 - Create service account `waste-logger-deployer` with `run.admin`, `artifactregistry.writer`, `iam.serviceAccountUser`, `storage.admin` roles
 - Create WIF pool + OIDC provider scoped to this GitHub repo
 - Replace `YOUR_PROJECT_NUMBER` in the workflow `WIF_PROVIDER` env var with the actual GCP project number
+
+### User
+
+Getting this error in GitHub Actions:
+`Error: google-github-actions/auth failed with: failed to generate Google Cloud federated token for ... {"error":"unauthorized_client","error_description":"The given credential is rejected by the attribute condition."}`
+
+### Assistant
+
+The WIF provider's `attribute-condition` was set with a placeholder repo name during the one-time setup, but the actual repo is `djwalker15/hops-prototype-figma`. No code changes needed — fixed by running one `gcloud` command to update the provider condition:
+
+```bash
+gcloud iam workload-identity-pools providers update-oidc github-provider \
+  --location=global \
+  --workload-identity-pool=github-pool \
+  --attribute-condition="assertion.repository=='djwalker15/hops-prototype-figma'" \
+  --project=hops-dev-488516
+```
+
+### User
+
+Getting a new error — Docker push fails with:
+`Permission 'iam.serviceAccounts.getAccessToken' denied on resource`
+
+### Assistant
+
+Same root cause as the attribute condition fix: the WIF service account binding (step 7 of GCP setup) was also set with the `OWNER/REPO` placeholder. The attribute condition and SA binding are two separate IAM resources, so fixing the first didn't catch this one.
+
+Fixed by re-running the SA binding with the correct repo:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  waste-logger-deployer@hops-dev-488516.iam.gserviceaccount.com \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/95353715793/locations/global/workloadIdentityPools/github-pool/attribute.repository/djwalker15/hops-prototype-figma" \
+  --project=hops-dev-488516
+```
+
+### User
+
+You stopped updating the transcript document.
+
+### Assistant
+
+Noted — will keep the transcript current going forward after every meaningful exchange.
