@@ -70,7 +70,7 @@ env:
   PROJECT_ID: hops-dev-488516
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
-  REPO: waste-logger
+  REPO: waste-logger-repo
   BACKEND_SERVICE: waste-logger-backend
   FRONTEND_SERVICE: waste-logger-frontend
   WIF_PROVIDER: projects/95353715793/locations/global/workloadIdentityPools/github-pool/providers/github-provider
