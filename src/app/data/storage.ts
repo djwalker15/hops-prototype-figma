@@ -270,6 +270,35 @@ export const clearItems = async (): Promise<void> => {
   console.warn('clearItems not implemented for Supabase backend - use seed instead');
 };
 
+// Clerk integration
+export const getUserByClerkId = async (clerkUserId: string, clerkToken: string): Promise<User | null> => {
+  try {
+    const data = await apiFetch(`/users/by-clerk-id/${clerkUserId}`, {
+      headers: { Authorization: `Bearer ${clerkToken}` },
+    });
+    return data.user || null;
+  } catch (error: unknown) {
+    // 404 means no user is linked yet — not an error, just return null
+    if (error instanceof Error && error.message.includes('404')) return null;
+    console.error('Error fetching user by Clerk ID:', error);
+    return null;
+  }
+};
+
+export const linkClerkUser = async (userId: string, pin: string, clerkToken: string): Promise<User | null> => {
+  try {
+    const data = await apiFetch(`/users/${userId}/link-clerk`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pin }),
+      headers: { Authorization: `Bearer ${clerkToken}` },
+    });
+    return data.user || null;
+  } catch (error) {
+    console.error('Error linking Clerk user:', error);
+    throw error;
+  }
+};
+
 // Waste Reasons
 export const getWasteReasons = async (): Promise<WasteReason[]> => {
   try {

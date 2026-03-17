@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 from . import ORM_CAMEL_CONFIG
 
@@ -11,3 +12,4 @@ class UserOut(BaseModel):
     role: str
     is_active: bool = True  # Not a DB column; always True
     is_scheduled_today: bool = False
+    clerk_user_id: Optional[str] = None

@@ -132,3 +132,45 @@ Production is unaffected — `VITE_API_URL` is always baked in at Docker build t
 ### User
 
 Confirmed working — mobile device now loads the app successfully.
+
+## Session 2 — 2026-03-13
+
+### User
+
+I want to implement Clerk in this app. I have set up a Clerk project already. Clerk + keep PIN: Clerk authenticates users initially, then PIN is a secondary check for linking accounts on shared devices. Best-practice user mapping.
+
+### Assistant
+
+Implemented Clerk authentication as the primary identity layer while keeping PIN for the account-linking flow on shared bar tablets.
+
+**Auth flow:**
+- **Case A (returning user):** Clerk session active → auto-lookup DB user by `clerk_user_id` → skip PIN, go straight to home
+- **Case B (new device):** Clerk session active → no linked DB user → show PIN screen to link Clerk account to DB user (one-time per device)
+- **Case C (not signed in):** No Clerk session → show Clerk's `<SignIn />` → then Case A or B
+- **Case D (switch user):** Header logout clears localStorage session only (Clerk session stays active) → PIN screen → any staff member can re-auth without full Clerk re-auth
+
+**Backend changes (8 files):**
+- `backend/requirements.txt` — added `PyJWT[crypto]==2.9.0` and `httpx==0.27.0`
+- `backend/app/models/user.py` — added `clerk_user_id` column (nullable, unique)
+- `backend/app/config.py` — added `clerk_secret_key` and `clerk_jwks_url` settings
+- `backend/app/schemas/user.py` — added `clerk_user_id: Optional[str]` to `UserOut`
+- `backend/app/dependencies/clerk_auth.py` *(new)* — `get_clerk_user_id()` FastAPI dep; fetches Clerk JWKS (1-hour in-memory cache), verifies RS256 Bearer JWT, returns `sub` claim
+- `backend/app/routers/users.py` — added `GET /users/by-clerk-id/{clerk_user_id}` and `PATCH /users/{id}/link-clerk` (both protected by `get_clerk_user_id` dep)
+- `backend/app/routers/seed.py` — added `POST /migrate-clerk` which runs `ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_user_id VARCHAR UNIQUE`
+- `backend/.env.example` — documented `CLERK_SECRET_KEY`
+
+**Frontend changes (6 files):**
+- `package.json` — added `@clerk/clerk-react`
+- `src/main.tsx` — wrapped `<App />` in `<ClerkProvider publishableKey={VITE_CLERK_PUBLISHABLE_KEY}>`
+- `src/app/routes.tsx` — `ProtectedRoute` now checks both `useAuth().isSignedIn` (Clerk) and `getCurrentUser()` (localStorage session)
+- `src/app/data/storage.ts` — added `getUserByClerkId()` and `linkClerkUser()` (both pass `Authorization: Bearer` header)
+- `src/app/screens/LoginScreen.tsx` — rewritten with 3-step state machine: `clerk-signin` / `resolving` / `linking`
+- `vite.config.ts` — added `/migrate-clerk` and `/reseed` to dev proxy
+
+**Deploy changes (2 files):**
+- `Dockerfile` — added `ARG/ENV VITE_CLERK_PUBLISHABLE_KEY`
+- `.github/workflows/deploy.yml` — added `CLERK_SECRET_KEY` to backend `--set-env-vars` and `VITE_CLERK_PUBLISHABLE_KEY` as `--build-arg` for frontend
+
+**GitHub secrets to add:** `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
+
+**First-time setup:** After deploying or restarting the backend, call `POST /migrate-clerk` once to add the `clerk_user_id` column to the live database.

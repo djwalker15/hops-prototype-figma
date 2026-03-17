@@ -21,6 +21,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/seed': 'http://localhost:8000',
+      '/reseed': 'http://localhost:8000',
+      '/migrate-clerk': 'http://localhost:8000',
       '/items': 'http://localhost:8000',
       '/users': 'http://localhost:8000',
       '/waste-entries': 'http://localhost:8000',
