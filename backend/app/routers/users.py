@@ -63,3 +63,48 @@ async def link_clerk_user(
     await db.commit()
     await db.refresh(user)
     return {"user": UserOut.model_validate(user).model_dump(by_alias=True)}
+
+
+@router.patch("/{user_id}/associate-clerk")
+async def associate_clerk_user(
+    user_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    clerk_user_id: str = Depends(get_clerk_user_id),
+):
+    """Personal device onboarding: link Clerk account and set (create) PIN. No PIN verification."""
+    pin = body.get("pin")
+    if not pin or len(pin) != 4:
+        raise HTTPException(status_code=400, detail="4-digit PIN required")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.clerk_user_id = clerk_user_id
+    user.pin = pin
+    await db.commit()
+    await db.refresh(user)
+    return {"user": UserOut.model_validate(user).model_dump(by_alias=True)}
+
+
+@router.post("/{user_id}/verify-pin")
+async def verify_pin(
+    user_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Kiosk login: verify PIN for a specific user. No Clerk auth required."""
+    pin = body.get("pin")
+    if not pin:
+        raise HTTPException(status_code=400, detail="PIN required")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.pin != pin:
+        raise HTTPException(status_code=401, detail="Incorrect PIN")
+
+    return {"user": UserOut.model_validate(user).model_dump(by_alias=True)}

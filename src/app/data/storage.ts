@@ -27,6 +27,7 @@ const SESSION_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
 const STORAGE_KEYS = {
   CURRENT_USER: 'hops_current_user',
   SESSION_TIMESTAMP: 'hops_session_timestamp',
+  KIOSK_MODE: 'hops_kiosk_mode',
 };
 
 // Initialize database by calling seed endpoint
@@ -102,7 +103,7 @@ export const getCurrentUser = (): User | null => {
   try {
     const userData = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     const sessionTimestamp = localStorage.getItem(STORAGE_KEYS.SESSION_TIMESTAMP);
-    
+    console.log("Getting user data: ", userData)
     if (!userData || !sessionTimestamp) {
       return null;
     }
@@ -136,8 +137,48 @@ export const clearCurrentUser = (): void => {
   try {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     localStorage.removeItem(STORAGE_KEYS.SESSION_TIMESTAMP);
+    // Intentionally does NOT clear KIOSK_MODE — that's device-level, not session-level
   } catch (error) {
     console.error('Error clearing current user:', error);
+  }
+};
+
+// Kiosk mode helpers (device-level flag, survives user switching)
+export const isKioskMode = (): boolean =>
+  localStorage.getItem(STORAGE_KEYS.KIOSK_MODE) === 'true';
+
+export const setKioskMode = (): void =>
+  localStorage.setItem(STORAGE_KEYS.KIOSK_MODE, 'true');
+
+export const clearKioskMode = (): void =>
+  localStorage.removeItem(STORAGE_KEYS.KIOSK_MODE);
+
+// Clerk integration — personal device onboarding: set clerk_user_id AND create PIN
+export const associateClerk = async (userId: string, pin: string, clerkToken: string): Promise<User | null> => {
+  try {
+    const data = await apiFetch(`/users/${userId}/associate-clerk`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pin }),
+      headers: { Authorization: `Bearer ${clerkToken}` },
+    });
+    return data.user || null;
+  } catch (error) {
+    console.error('Error associating Clerk user:', error);
+    throw error;
+  }
+};
+
+// Kiosk login: verify PIN for a specific user (no Clerk auth)
+export const verifyPin = async (userId: string, pin: string): Promise<User | null> => {
+  try {
+    const data = await apiFetch(`/users/${userId}/verify-pin`, {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    });
+    return data.user || null;
+  } catch (error) {
+    console.error('Error verifying PIN:', error);
+    throw error;
   }
 };
 

@@ -174,3 +174,26 @@ Implemented Clerk authentication as the primary identity layer while keeping PIN
 **GitHub secrets to add:** `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 
 **First-time setup:** After deploying or restarting the backend, call `POST /migrate-clerk` once to add the `clerk_user_id` column to the live database.
+
+---
+
+## Session 2 — 2026-03-16
+
+### User
+
+Getting 500 errors on `GET /users/by-clerk-id/{id}` and `PATCH /users/{id}/link-clerk`:
+`httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.clerk.com/v1/jwks'`
+
+### Assistant
+
+Root cause: `https://api.clerk.com/v1/jwks` is an authenticated Clerk API endpoint — it requires `Authorization: Bearer <CLERK_SECRET_KEY>` in the request header. The `_get_jwks()` function in `backend/app/dependencies/clerk_auth.py` was calling it without any auth header.
+
+**Fix:** Added the Authorization header to the httpx GET call in `clerk_auth.py:19`:
+```python
+resp = await client.get(
+    settings.clerk_jwks_url,
+    headers={"Authorization": f"Bearer {settings.clerk_secret_key}"},
+)
+```
+
+User confirmed: "The errors are gone now."

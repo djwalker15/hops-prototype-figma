@@ -1,34 +1,41 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { LoginScreen } from './screens/LoginScreen';
+import { KioskLoginScreen } from './screens/KioskLoginScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
-import { getCurrentUser } from './data/storage';
+import { getCurrentUser, isKioskMode } from './data/storage';
 
-// Protected Route wrapper — requires both Clerk auth and a linked app user (PIN session)
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// Personal device: requires Clerk session + localStorage session
+function PersonalRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
-
-  // Wait for Clerk to finish loading before making auth decisions
   if (!isLoaded) return null;
-
-  if (!isSignedIn) {
-    return <Navigate to="/" replace />;
-  }
-
-  const currentUser = getCurrentUser();
-  if (!currentUser) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (!isSignedIn) return <Navigate to="/" replace />;
+  if (!getCurrentUser()) return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+// Kiosk: requires only localStorage session (no Clerk)
+function KioskRoute({ children }: { children: React.ReactNode }) {
+  if (!getCurrentUser()) return <Navigate to="/kiosk" replace />;
+  return <>{children}</>;
+}
+
+// Picks the right protection based on device mode
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  if (isKioskMode()) return <KioskRoute>{children}</KioskRoute>;
+  return <PersonalRoute>{children}</PersonalRoute>;
 }
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <LoginScreen />,
+  },
+  {
+    path: '/kiosk',
+    element: <KioskLoginScreen />,
   },
   {
     path: '/home',

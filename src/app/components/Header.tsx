@@ -1,7 +1,9 @@
 import { Wine, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
-import { getCurrentUser, clearCurrentUser } from '../data/storage';
+import { getCurrentUser, clearCurrentUser, isKioskMode, clearKioskMode } from '../data/storage';
 import { useNavigate } from 'react-router';
+import { useClerk } from '@clerk/clerk-react';
+import { Meta } from 'react-router';
 
 interface HeaderProps {
   title?: string;
@@ -12,7 +14,7 @@ interface HeaderProps {
   todayCount?: number;
 }
 
-export function Header({ 
+export function Header({
   title = 'H.O.P.S.',
   subtitle,
   showLogout = true,
@@ -22,10 +24,18 @@ export function Header({
 }: HeaderProps) {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
-
+  const { signOut } = useClerk();
+  
+  console.log("ENV:", (import.meta as any).env)
+  console.log(isKioskMode)
   const handleLogout = () => {
     clearCurrentUser();
-    navigate('/');
+    navigate(isKioskMode() ? '/kiosk' : '/');
+  };
+
+  const handleClerkSignOut = () => {
+    clearCurrentUser();
+    signOut({ redirectUrl: '/' });
   };
 
   return (
@@ -41,16 +51,38 @@ export function Header({
               )}
             </div>
           </div>
-          {showLogout && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-[#6B5537]"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {(import.meta as any).env?.DEV && !isKioskMode() && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white/70 hover:bg-[#6B5537] text-xs"
+                onClick={handleClerkSignOut}
+              >
+                Sign out Clerk
+              </Button>
+            )}
+            {(import.meta as any).env?.DEV && isKioskMode() && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white/70 hover:bg-[#6B5537] text-xs"
+                onClick={() => { clearCurrentUser(); clearKioskMode(); navigate('/'); }}
+              >
+                Exit kiosk
+              </Button>
+            )}
+            {showLogout && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-[#6B5537]"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {showUserInfo && currentUser && (

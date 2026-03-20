@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useAuth, useUser, SignIn } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router';
-import { setCurrentUser, getCurrentUser, getUserByClerkId, associateClerk } from '../data/storage';
+import { setCurrentUser, getCurrentUser, setKioskMode, verifyPin } from '../data/storage';
 import { User } from '../data/mockData';
 import { useUsers } from '../hooks/useUsers';
 import { Button } from '../components/ui/button';
@@ -15,96 +14,31 @@ import {
   SelectValue,
 } from '../components/ui/select';
 
-// Step 1: 'clerk-signin'  — user not signed into Clerk, show Clerk's SignIn component
-// Step 2: 'resolving'     — Clerk session active, looking up linked DB user automatically
-// Step 3: 'setup'         — no DB user linked yet; pick name and create kiosk PIN
-type Step = 'clerk-signin' | 'resolving' | 'setup';
-
-export function LoginScreen() {
-  const { isSignedIn, isLoaded, getToken } = useAuth();
-  const { user: clerkUser } = useUser();
+export function KioskLoginScreen() {
   const { data: users = [] } = useUsers();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<Step>('resolving');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [showOtherStaff, setShowOtherStaff] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If already fully logged in, send to home immediately
+  // Mark this as a kiosk device on load
+  useEffect(() => {
+    setKioskMode();
+  }, []);
+
+  // If already logged in (e.g. page refresh), go straight to home
   useEffect(() => {
     if (getCurrentUser()) {
       navigate('/home', { replace: true });
     }
   }, [navigate]);
 
-  // Once Clerk has loaded, determine which step to show
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    if (!isSignedIn) {
-      setStep('clerk-signin');
-      return;
-    }
-
-    // User manually switched users — skip auto-resolve, show PIN entry
-    if (sessionStorage.getItem('switch_user')) {
-      sessionStorage.removeItem('switch_user');
-      setStep('setup');
-      return;
-    }
-
-    // Clerk session active — try to resolve the linked DB user automatically
-    const resolve = async () => {
-      setStep('resolving');
-      try {
-        const token = await getToken();
-        if (!token || !clerkUser) {
-          setStep('setup');
-          return;
-        }
-        const user = await getUserByClerkId(clerkUser.id, token);
-        if (user) {
-          setCurrentUser(user);
-          navigate('/home', { replace: true });
-        } else {
-          setStep('setup');
-        }
-      } catch {
-        setStep('setup');
-      }
-    };
-
-    resolve();
-  }, [isLoaded, isSignedIn, clerkUser, getToken, navigate]);
-
   const scheduledUsers = users.filter(u => u.isScheduledToday);
   const otherUsers = users.filter(u => !u.isScheduledToday);
   const selectedUser = users.find(u => u.id === selectedUserId);
-
-  const handleSetup = async () => {
-    if (!selectedUserId) { setError('Please select your name'); return; }
-    if (pin.length !== 4) { setError('Please enter a 4-digit PIN'); return; }
-    if (!clerkUser) { setError('Clerk session lost. Please refresh.'); return; }
-
-    setIsSubmitting(true);
-    setError('');
-    try {
-      const token = await getToken();
-      if (!token) throw new Error('Could not get Clerk token');
-      const user = await associateClerk(selectedUserId, pin, token);
-      if (!user) throw new Error('Setup failed');
-      setCurrentUser(user);
-      navigate('/home', { replace: true });
-    } catch {
-      setError('Something went wrong. Please try again.');
-      setPin('');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleUserSelect = (userId: string) => {
     setSelectedUserId(userId);
@@ -120,42 +54,38 @@ export function LoginScreen() {
     setPin('');
   };
 
-  // ── Clerk sign-in screen ──────────────────────────────────────────────────
-  if (step === 'clerk-signin') {
-    return (
-      <div className="min-h-screen bg-[#F5F1E8] flex flex-col items-center justify-center p-4">
-        <div className="mb-6 flex items-center gap-3">
-          <Wine className="w-8 h-8 text-[#8B6F47]" />
-          <h1 className="text-2xl font-bold text-[#4A3728]">Haywire Waste Logger</h1>
-        </div>
-        <SignIn routing="hash" />
-      </div>
-    );
-  }
+  const handleLogin = async () => {
+    if (!selectedUserId) { setError('Please select your name'); return; }
+    if (pin.length !== 4) { setError('Please enter your 4-digit PIN'); return; }
 
-  // ── Resolving (auto-lookup in progress) ───────────────────────────────────
-  if (step === 'resolving') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F5F1E8]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mx-auto mb-4" />
-          <p className="text-[#4A3728]">Signing you in…</p>
-        </div>
-      </div>
-    );
-  }
+    setIsSubmitting(true);
+    setError('');
+    try {
+      const user = await verifyPin(selectedUserId, pin);
+      if (!user) throw new Error('Login failed');
+      setCurrentUser(user);
+      navigate('/home', { replace: true });
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('401')) {
+        setError('Incorrect PIN. Please try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+      setPin('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-  // ── Link account + PIN screen ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F5F1E8] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
-        {/* Header */}
         <div className="flex items-center justify-center gap-3 mb-2">
           <Wine className="w-8 h-8 text-[#8B6F47]" />
           <h1 className="text-2xl font-bold text-[#4A3728]">Haywire Waste Logger</h1>
         </div>
         <p className="text-center text-sm text-gray-500 mb-6">
-          Select your name and create a PIN — you'll use it to log in on shared bar devices.
+          Select your name and enter your PIN to log in.
         </p>
 
         {/* Scheduled Staff */}
@@ -232,7 +162,7 @@ export function LoginScreen() {
         <div className="mb-4 p-4 bg-[#F5F1E8] rounded-lg border border-[#8B6F47] min-h-[88px] flex items-center justify-center">
           {selectedUser ? (
             <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Setting up as</p>
+              <p className="text-sm text-gray-600 mb-1">Signing in as</p>
               <p className="text-lg font-bold text-[#4A3728]">{selectedUser.name}</p>
               <p className="text-xs text-gray-500 capitalize">{selectedUser.role}</p>
             </div>
@@ -243,7 +173,7 @@ export function LoginScreen() {
 
         {/* PIN entry */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-[#4A3728] mb-2">Create your kiosk PIN</label>
+          <label className="block text-sm font-medium text-[#4A3728] mb-2">Enter PIN</label>
           <div className="flex justify-center">
             <InputOTP
               maxLength={4}
@@ -271,11 +201,11 @@ export function LoginScreen() {
         )}
 
         <Button
-          onClick={handleSetup}
+          onClick={handleLogin}
           className="w-full h-12 bg-[#8B6F47] hover:bg-[#6B5537] text-white"
           disabled={!selectedUserId || pin.length !== 4 || isSubmitting}
         >
-          {isSubmitting ? 'Setting up…' : 'Set PIN & Continue'}
+          {isSubmitting ? 'Signing in…' : 'Sign In'}
         </Button>
       </div>
     </div>
